@@ -1,3 +1,8 @@
+"""
+Embeds novels from the MySQL novels table using BAAI/bge-m3 and writes embeddings back to the DB
+Builds a normalized FAISS inner-product index novels.faiss
+For each novel, computes nearest and farthest neighbours and upserts results into novel_neighbors
+"""
 from typing import Any
 from FlagEmbedding import BGEM3FlagModel
 from tqdm import tqdm
@@ -163,27 +168,27 @@ def main():
     vec_list = []
     chunk = 512
 
-    # for i in tqdm(range(0, len(novel_list), chunk)):
-    #     novel_vec = embed_novels(novel_list[i:i+chunk])
-    #     vec_list.append(novel_vec)
-    #
-    # embeddings = np.vstack(vec_list)
-    # dim = int(embeddings.shape[1])
-    #
-    # with pymysql.connect(**DB_CONFIG) as conn:
-    #     with conn.cursor() as cur:
-    #         cur.execute("SELECT url FROM novels ORDER BY title")
-    #         urls_db = [r[0] for r in cur.fetchall()]
-    #
-    #         cur.executemany(
-    #             """
-    #             UPDATE novels
-    #             SET embedding=%s, embedding_dim=%s, embedding_model=%s
-    #             WHERE url=%s
-    #             """,
-    #             [(embeddings[i].tobytes(), dim, "BAAI/bge-m3", urls_db[i]) for i in range(len(urls_db))]
-    #         )
-    #     conn.commit()
+    for i in tqdm(range(0, len(novel_list), chunk)):
+        novel_vec = embed_novels(novel_list[i:i+chunk])
+        vec_list.append(novel_vec)
+    
+    embeddings = np.vstack(vec_list)
+    dim = int(embeddings.shape[1])
+    
+    with pymysql.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT url FROM novels ORDER BY title")
+            urls_db = [r[0] for r in cur.fetchall()]
+    
+            cur.executemany(
+                """
+                UPDATE novels
+                SET embedding=%s, embedding_dim=%s, embedding_model=%s
+                WHERE url=%s
+                """,
+                [(embeddings[i].tobytes(), dim, "BAAI/bge-m3", urls_db[i]) for i in range(len(urls_db))]
+            )
+        conn.commit()
 
     index = faiss_index(embedding_store)
 
